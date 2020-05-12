@@ -1,3 +1,5 @@
+provider "vsphere" {}
+
 data "vsphere_datacenter" "dc" {
   name = var.dc
 }
@@ -41,19 +43,39 @@ data "vsphere_tag" "tag" {
 }
 
 variable "vm_specs" {
-  type = map(
-    object(
-      {
-        vm_name              = string
-        num_cpus             = string
-        num_cores_per_socket = string
-        memory               = string
-        ip_addr              = string
-        subnet_mask          = string
-        gateway              = string
+  type = map(object({
+    vm_name              = string
+    num_cpus             = string
+    num_cores_per_socket = string
+    memory               = string
+    ip_addr              = string
+    subnet_mask          = string
+    gateway              = string
+    additional_disks = map(object({
+      label            = string
+      size             = string
+      unit_number      = string
+      thin_provisioned = string
+      eagerly_scrub    = string
+      })
+    ) }
+  ))
+}
+
+locals {
+  additional_disks = flatten([
+    for vm_key, vm in var.vm_specs : [
+      for additional_disk_key, additional_disk in vm.additional_disks : {
+        vm_key               = vm_key
+        additional_disks_key = additional_disks_key
+        label                = additional_disk.label
+        size                 = additional_disk.size
+        unit_number          = additional_disk.unit_number
+        thin_provisioned     = additional_disk.thin_provisioned
+        eagerly_scrub        = additional_disk.eagerly_scrub
       }
-    )
-  )
+    ]
+  ])
 }
 
 resource "vsphere_virtual_machine" "windows" {
@@ -71,11 +93,11 @@ resource "vsphere_virtual_machine" "windows" {
   datastore_cluster_id = var.ds_cluster != "" ? data.vsphere_datastore_cluster.datastore_cluster[0].id : null
   datastore_id         = var.datastore != "" ? data.vsphere_datastore.datastore[0].id : null
 
-  num_cpus               = each.value.num_cpus
-  num_cores_per_socket   = each.value.num_cores_per_socket
-  memory                 = each.value.memory
-  guest_id               = data.vsphere_virtual_machine.template.guest_id
-  scsi_type              = data.vsphere_virtual_machine.template.scsi_type
+  num_cpus             = each.value.num_cpus
+  num_cores_per_socket = each.value.num_cores_per_socket
+  memory               = each.value.memory
+  guest_id             = data.vsphere_virtual_machine.template.guest_id
+  scsi_type            = data.vsphere_virtual_machine.template.scsi_type
 
   #wait_for_guest_net_routable = var.wait_for_guest_net_routable
   #wait_for_guest_ip_timeout   = var.wait_for_guest_ip_timeout
@@ -86,16 +108,32 @@ resource "vsphere_virtual_machine" "windows" {
     adapter_type = data.vsphere_virtual_machine.template.network_interface_types[0]
   }
 
-  // Disks defined in the original template
+  # Disks defined in the original template
   dynamic "disk" {
     for_each = data.vsphere_virtual_machine.template.disks
     iterator = template_disks
+
     content {
       label            = "disk-${template_disks.key}"
       size             = data.vsphere_virtual_machine.template.disks[template_disks.key].size
       unit_number      = template_disks.key
       thin_provisioned = data.vsphere_virtual_machine.template.disks[template_disks.key].thin_provisioned
       eagerly_scrub    = data.vsphere_virtual_machine.template.disks[template_disks.key].eagerly_scrub
+    }
+  }
+
+  # Additional optional disks specified in vm_specs input variable map
+  dynamic "disk" {
+    for_each = {
+      for additional_disk in local.additional_disks : "${additional_disk.vm_key}.${additional_disk.additional_disk_key}" => additional_disk
+    }
+
+    content {
+      label            = each.value.label
+      size             = each.value.size
+      unit_number      = each.value.unit_number
+      thin_provisioned = each.value.thin_provisioned
+      eagerly_scrub    = each.value.eagerly_scrub
     }
   }
 
