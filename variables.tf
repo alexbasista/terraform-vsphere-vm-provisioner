@@ -1,47 +1,17 @@
-variable "dc" {
+#################################################
+# Data Sources (vCenter lookups)
+#################################################
+variable "datacenter" {
   type        = string
   description = "Name of the datacenter you want to deploy the VM to"
 }
 
-variable "vm_rp" {
+variable "resource_pool" {
   type        = string
   description = "Cluster resource pool that VM will be deployed to. you use following to choose default pool in the cluster (esxi1) or (Cluster)/Resources"
 }
 
-#variable "vm_specs" {
-#    type = map(
-#        object(
-#            {
-#                vm_name              = string
-#                num_cpus             = string
-#                num_cores_per_socket = string
-#                memory               = string
-#                ip_addr              = string
-#                subnet_mask          = string
-#                gateway              = string
-#            }
-#        )
-#    )
-#}
-
-variable "ram_size" {
-  description = "VM RAM size in megabytes"
-  default     = 4096
-}
-
-
-variable "vm_template" {
-  type        = string
-  description = "Name of the template available in the vSphere"
-}
-
-
-variable "vm_portgroup" {
-  description = ""
-  type        = string
-}
-
-variable "ds_cluster" {
+variable "datastore_cluster" {
   type        = string
   description = "Datastore cluster to deploy the VM."
   default     = ""
@@ -51,6 +21,55 @@ variable "datastore" {
   type        = string
   description = "Datastore to deploy the VM."
   default     = ""
+}
+
+variable "vm_template" {
+  type        = string
+  description = "Name of the template available in the vSphere"
+}
+
+variable "vm_portgroup" {
+  type        = string
+  description = "Existing VM Port Group to use for the VM Network Adapter."
+  
+}
+
+variable "tags" {
+  description = "Existing Tags to attach to new VM(s)."
+  type        = map
+  default     = null
+}
+
+#################################################
+# VM Specifications Map (one or more unique VMs)
+#################################################
+# variable "vm_specs" {
+#   type = map(object({
+#     vm_name              = string
+#     num_cpus             = string
+#     num_cores_per_socket = string
+#     memory               = string
+#     ip_addr              = string
+#     subnet_mask          = string
+#     gateway              = string
+#     additional_disks = map(object({
+#       label            = string
+#       size             = string
+#       unit_number      = string
+#       thin_provisioned = string
+#       eagerly_scrub    = string
+#       })
+#     ) }
+#   ))
+# }
+
+#################################################
+# Global VM Settings (applies to all VMs created)
+#################################################
+variable "is_windows_image" {
+  type        = bool
+  description = "Boolean flag to notify when the custom image is windows based."
+  default     = true
 }
 
 variable "vm_folder" {
@@ -63,72 +82,63 @@ variable "vm_dns" {
   default = null
 }
 
-#Global Customization Variables
-variable "tags" {
-  description = "The names of any tags to attach to this resource. They shoud already exist"
-  type        = map
-  default     = null
-}
-
-variable "custom_attributes" {
-  description = "Map of custom attribute ids to attribute value strings to set for virtual machine."
-  type        = map
-  default     = null
-}
-
-variable "extra_config" {
-  description = "Extra configuration data for this virtual machine. Can be used to supply advanced parameters not normally in configuration, such as instance metadata.'disk.enableUUID', 'True'"
-  type        = map
-  default     = null
-}
-
-variable "annotation" {
-  description = "A user-provided description of the virtual machine. The default is no annotation."
-  default     = null
-}
-
-variable "clone_timeout" {
-  description = "The timeout, in minutes, to wait for the virtual machine clone to complete."
-  type        = number
-  default     = 30
-}
-
 variable "dns_suffix_list" {
   description = "A list of DNS search domains to add to the DNS configuration on the virtual machine."
   type        = list(string)
   default     = null
 }
 
-#variable "data_disk_size_gb" {
-#  description = "Storage data disk size size"
-#  type        = list
-#  default     = []
-#}
-
-variable "thin_provisioned" {
-  description = "If true, this disk is thin provisioned, with space for the file being allocated on an as-needed basis."
-  type        = list
-  default     = null
-}
-
-variable "eagerly_scrub" {
-  description = "if set to true, the disk space is zeroed out on VM creation. This will delay the creation of the disk or virtual machine. Cannot be set to true when thin_provisioned is true."
-  type        = list
-  default     = null
-}
-
-variable "enable_disk_uuid" {
-  description = "Expose the UUIDs of attached virtual disks to the virtual machine, allowing access to them in the guest."
-  default     = null
-}
-
-# Windows Customization Variables
-variable "is_windows_image" {
+variable "wait_for_guest_net_routable" {
   type        = bool
-  description = "Boolean flag to notify when the custom image is windows based."
+  description = "Controls whether or not the guest network waiter waits for a routable address. When false, the waiter does not wait for a default gateway, nor are IP addresses checked against any discovered default gateways as part of its success criteria. This property is ignored if the wait_for_guest_ip_timeout waiter is used."
   default     = true
 }
 
+variable "wait_for_guest_ip_timeout" {
+  type        = number
+  description = "The amount of time, in minutes, to wait for an available guest IP address on this virtual machine. This should only be used if your version of VMware Tools does not allow the wait_for_guest_net_timeout waiter to be used. A value less than 1 disables the waiter."
+  default     = 0
+}
+
+variable "wait_for_guest_net_timeout" {
+  type        = number
+  description = "The amount of time, in minutes, to wait for an available IP address on this virtual machine's NICs. Older versions of VMware Tools do not populate this property. In those cases, this waiter can be disabled and the wait_for_guest_ip_timeout waiter can be used instead. A value less than 1 disables the waiter."
+  default     = 5
+}
+
+variable "custom_attributes" {
+  type        = map
+  description = "Map of custom attribute ids to attribute value strings to set for virtual machine."
+  default     = null
+}
+
+variable "extra_config" {
+  type        = map
+  description = "Extra configuration data for this virtual machine. Can be used to supply advanced parameters not normally in configuration, such as instance metadata.'disk.enableUUID', 'True'"
+  default     = null
+}
+
+variable "annotation" {
+  type        = string
+  description = "A user-provided description of the virtual machine. The default is no annotation."
+  default     = null
+}
+
+variable "clone_timeout" {
+  type        = number
+  description = "The timeout, in minutes, to wait for the virtual machine clone to complete."
+  default     = 30
+}
+
+variable "enable_disk_uuid" {
+  type        = bool
+  description = "Expose the UUIDs of attached virtual disks to the virtual machine, allowing access to them in the guest."
+  default     = false
+}
+
+#################################################
+# Windows VM Customizations
+#################################################
 variable "local_adminpass" {
   type        = string
   description = "The administrator password for this virtual machine.(Required) when using join_windomain option"
@@ -175,22 +185,4 @@ variable "run_once" {
   type        = list(string)
   description = "List of Comamnd to run during first logon (Automatic login set to 1)"
   default     = null
-}
-
-variable "wait_for_guest_net_routable" {
-  type        = bool
-  description = "Controls whether or not the guest network waiter waits for a routable address. When false, the waiter does not wait for a default gateway, nor are IP addresses checked against any discovered default gateways as part of its success criteria. This property is ignored if the wait_for_guest_ip_timeout waiter is used."
-  default     = true
-}
-
-variable "wait_for_guest_ip_timeout" {
-  type        = number
-  description = "The amount of time, in minutes, to wait for an available guest IP address on this virtual machine. This should only be used if your version of VMware Tools does not allow the wait_for_guest_net_timeout waiter to be used. A value less than 1 disables the waiter."
-  default     = 0
-}
-
-variable "wait_for_guest_net_timeout" {
-  type        = number
-  description = "The amount of time, in minutes, to wait for an available IP address on this virtual machine's NICs. Older versions of VMware Tools do not populate this property. In those cases, this waiter can be disabled and the wait_for_guest_ip_timeout waiter can be used instead. A value less than 1 disables the waiter."
-  default     = 5
 }

@@ -1,27 +1,27 @@
-provider "vsphere" {}
-
 data "vsphere_datacenter" "dc" {
-  name = var.dc
+  name = var.datacenter
 }
 
-data "vsphere_datastore_cluster" "datastore_cluster" {
-  count         = var.ds_cluster != "" ? 1 : 0
-  name          = var.ds_cluster
-  datacenter_id = data.vsphere_datacenter.dc.id
-}
-
-data "vsphere_datastore" "datastore" {
-  count         = var.datastore != "" && var.ds_cluster == "" ? 1 : 0
+data "vsphere_datastore_cluster" "dsc" {
+  count         = var.datastore_cluster != "" ? 1 : 0
+  
   name          = var.datastore
   datacenter_id = data.vsphere_datacenter.dc.id
 }
 
-data "vsphere_resource_pool" "pool" {
-  name          = var.vm_rp
+data "vsphere_datastore" "ds" {
+  count         = var.datastore != "" && var.datastore_cluster == "" ? 1 : 0
+  
+  name          = var.datastore
   datacenter_id = data.vsphere_datacenter.dc.id
 }
 
-data "vsphere_network" "network" {
+data "vsphere_resource_pool" "rp" {
+  name          = var.resource_pool
+  datacenter_id = data.vsphere_datacenter.dc.id
+}
+
+data "vsphere_network" "pg" {
   name          = var.vm_portgroup
   datacenter_id = data.vsphere_datacenter.dc.id
 }
@@ -33,6 +33,7 @@ data "vsphere_virtual_machine" "template" {
 
 data "vsphere_tag_category" "category" {
   count = var.tags != null ? length(var.tags) : 0
+  
   name  = keys(var.tags)[count.index]
 }
 
@@ -67,7 +68,7 @@ locals {
     for vm_key, vm in var.vm_specs : [
       for additional_disk_key, additional_disk in vm.additional_disks : {
         vm_key               = vm_key
-        additional_disks_key = additional_disks_key
+        additional_disk_key  = additional_disk_key
         label                = additional_disk.label
         size                 = additional_disk.size
         unit_number          = additional_disk.unit_number
@@ -81,17 +82,16 @@ locals {
 resource "vsphere_virtual_machine" "windows" {
   for_each = var.is_windows_image == true ? var.vm_specs : {}
 
-  name = each.value.vm_name
-
-  resource_pool_id  = data.vsphere_resource_pool.pool.id
+  name              = each.value.vm_name
+  resource_pool_id  = data.vsphere_resource_pool.rp.id
   folder            = var.vm_folder
   tags              = data.vsphere_tag.tag[*].id
   custom_attributes = var.custom_attributes
   annotation        = var.annotation
   extra_config      = var.extra_config
 
-  datastore_cluster_id = var.ds_cluster != "" ? data.vsphere_datastore_cluster.datastore_cluster[0].id : null
-  datastore_id         = var.datastore != "" ? data.vsphere_datastore.datastore[0].id : null
+  datastore_cluster_id = var.datastore_cluster != "" ? data.vsphere_datastore_cluster.dsc[0].id : null
+  datastore_id         = var.datastore != "" ? data.vsphere_datastore.ds[0].id : null
 
   num_cpus             = each.value.num_cpus
   num_cores_per_socket = each.value.num_cores_per_socket
@@ -104,7 +104,7 @@ resource "vsphere_virtual_machine" "windows" {
   #wait_for_guest_net_timeout  = var.wait_for_guest_net_timeout
 
   network_interface {
-    network_id   = data.vsphere_network.network.id
+    network_id   = data.vsphere_network.pg.id
     adapter_type = data.vsphere_virtual_machine.template.network_interface_types[0]
   }
 
