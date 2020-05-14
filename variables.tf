@@ -31,7 +31,7 @@ variable "vm_template" {
 variable "vm_portgroup" {
   type        = string
   description = "Name of existing VM Port Group to use for the VM(s) Network Adapter."
-  
+
 }
 
 variable "tags" {
@@ -139,9 +139,9 @@ variable "dns_suffix_list" {
 # Windows VM Customizations
 #################################################
 variable "dns_server_list" {
-  type    = list(string)
+  type        = list(string)
   description = "List of DNS servers to add to VM(s)."
-  default = null
+  default     = null
 }
 
 variable "admin_password" {

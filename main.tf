@@ -3,15 +3,15 @@ data "vsphere_datacenter" "dc" {
 }
 
 data "vsphere_datastore_cluster" "dsc" {
-  count         = var.datastore_cluster != "" ? 1 : 0
-  
+  count = var.datastore_cluster != "" ? 1 : 0
+
   name          = var.datastore
   datacenter_id = data.vsphere_datacenter.dc.id
 }
 
 data "vsphere_datastore" "ds" {
-  count         = var.datastore != "" && var.datastore_cluster == "" ? 1 : 0
-  
+  count = var.datastore != "" && var.datastore_cluster == "" ? 1 : 0
+
   name          = var.datastore
   datacenter_id = data.vsphere_datacenter.dc.id
 }
@@ -33,13 +33,13 @@ data "vsphere_virtual_machine" "template" {
 
 data "vsphere_tag_category" "category" {
   count = var.tags != null ? length(var.tags) : 0
-  
-  name  = keys(var.tags)[count.index]
+
+  name = keys(var.tags)[count.index]
 }
 
 data "vsphere_tag" "tag" {
-  count       = var.tags != null ? length(var.tags) : 0
-  
+  count = var.tags != null ? length(var.tags) : 0
+
   name        = var.tags[keys(var.tags)[count.index]]
   category_id = data.vsphere_tag_category.category[count.index].id
 }
@@ -54,8 +54,8 @@ variable "vm_specs" {
     subnet_mask          = string
     gateway              = string
     additional_disks = map(object({
-      label            = string
-      size             = string
+      label = string
+      size  = string
       #unit_number      = string
       thin_provisioned = string
       eagerly_scrub    = string
@@ -109,22 +109,22 @@ resource "vsphere_virtual_machine" "windows" {
 
   # Additional disks specified in additional_disks within vm_specs map (opitonal)
   dynamic "disk" {
-    for_each = each.value.additional_disks == {} ? [] : flatten([ for disk in each.value.additional_disks : [
+    for_each = each.value.additional_disks == {} ? [] : flatten([for disk in each.value.additional_disks : [
       for k, v in disk : {
-        label       = disk.label
-        size        = disk.size
+        label = disk.label
+        size  = disk.size
         #unit_number = disk.unit_number
         thin_provisioned = disk.thin_provisioned
         eagerly_scrub    = disk.eagerly_scrub
       }
-    ]
+      ]
     ])
 
     iterator = additional_disk
 
     content {
-      label            = additional_disk.value.label
-      size             = additional_disk.value.size
+      label = additional_disk.value.label
+      size  = additional_disk.value.size
       #unit_number      = additional_disk.value.unit_number
       thin_provisioned = additional_disk.value.thin_provisioned
       eagerly_scrub    = additional_disk.value.eagerly_scrub
