@@ -3,40 +3,40 @@
 #################################################
 variable "datacenter" {
   type        = string
-  description = "Name of the datacenter you want to deploy the VM to"
+  description = "Name of the vCenter Datacenter to deploy VM(s) in."
 }
 
 variable "resource_pool" {
   type        = string
-  description = "Cluster resource pool that VM will be deployed to. you use following to choose default pool in the cluster (esxi1) or (Cluster)/Resources"
+  description = "ESX Cluster Resource Pool that VM will be deployed to. Specify name of ESX Cluster to deploy VM(s) into 'root' Resource Pool of ESX Cluster."
 }
 
 variable "datastore_cluster" {
   type        = string
-  description = "Datastore cluster to deploy the VM."
+  description = "Datastore Cluster to deploy VM(s) on. Only specify if datastore is not specified."
   default     = ""
 }
 
 variable "datastore" {
   type        = string
-  description = "Datastore to deploy the VM."
+  description = "Datastore to deploy VM(s) on. Only specify if datastore_cluster is not specified."
   default     = ""
 }
 
 variable "vm_template" {
   type        = string
-  description = "Name of the template available in the vSphere"
+  description = "Name of existing VM Template to deploy VM(s) from."
 }
 
 variable "vm_portgroup" {
   type        = string
-  description = "Existing VM Port Group to use for the VM Network Adapter."
+  description = "Name of existing VM Port Group to use for the VM(s) Network Adapter."
   
 }
 
 variable "tags" {
-  description = "Existing Tags to attach to new VM(s)."
-  type        = map
+  description = "Existing Tags to attach to VM(s)."
+  type        = map(string)
   default     = null
 }
 
@@ -64,7 +64,7 @@ variable "tags" {
 # }
 
 #################################################
-# Global VM Settings (applies to all VMs created)
+# Global VM Settings
 #################################################
 variable "is_windows_image" {
   type        = bool
@@ -73,60 +73,50 @@ variable "is_windows_image" {
 }
 
 variable "vm_folder" {
-  description = "The path to the folder to put this virtual machine in, relative to the datacenter that the resource pool is in."
+  type        = string
+  description = "vCenter Folder within specified ESX Cluster or Resource Pool to place VM(s) in."
   default     = null
 }
 
-variable "vm_dns" {
-  type    = list(string)
-  default = null
-}
-
-variable "dns_suffix_list" {
-  description = "A list of DNS search domains to add to the DNS configuration on the virtual machine."
-  type        = list(string)
-  default     = null
+variable "wait_for_guest_net_timeout" {
+  type        = number
+  description = "Amount of time (minutes) to wait for an available IP address on VM(s) NICs."
+  default     = 5
 }
 
 variable "wait_for_guest_net_routable" {
   type        = bool
-  description = "Controls whether or not the guest network waiter waits for a routable address. When false, the waiter does not wait for a default gateway, nor are IP addresses checked against any discovered default gateways as part of its success criteria. This property is ignored if the wait_for_guest_ip_timeout waiter is used."
+  description = "Controls whether or not the guest network waiter waits for a routable address."
   default     = true
 }
 
 variable "wait_for_guest_ip_timeout" {
   type        = number
-  description = "The amount of time, in minutes, to wait for an available guest IP address on this virtual machine. This should only be used if your version of VMware Tools does not allow the wait_for_guest_net_timeout waiter to be used. A value less than 1 disables the waiter."
+  description = "Amount of time (minutes) to wait for an available guest IP address on VM(s)/"
   default     = 0
-}
-
-variable "wait_for_guest_net_timeout" {
-  type        = number
-  description = "The amount of time, in minutes, to wait for an available IP address on this virtual machine's NICs. Older versions of VMware Tools do not populate this property. In those cases, this waiter can be disabled and the wait_for_guest_ip_timeout waiter can be used instead. A value less than 1 disables the waiter."
-  default     = 5
 }
 
 variable "custom_attributes" {
   type        = map
-  description = "Map of custom attribute ids to attribute value strings to set for virtual machine."
+  description = "Map of custom attribute IDs to attribute values to set on VM(s)."
   default     = null
 }
 
 variable "extra_config" {
   type        = map
-  description = "Extra configuration data for this virtual machine. Can be used to supply advanced parameters not normally in configuration, such as instance metadata.'disk.enableUUID', 'True'"
+  description = "Extra configuration data for VM(s). Can be used to supply advanced parameters not normally in configuration, such as instance metadata.'disk.enableUUID', 'True'."
   default     = null
 }
 
 variable "annotation" {
   type        = string
-  description = "A user-provided description of the virtual machine. The default is no annotation."
+  description = "A user-provided description of VM(s). The default is no annotation."
   default     = null
 }
 
 variable "clone_timeout" {
   type        = number
-  description = "The timeout, in minutes, to wait for the virtual machine clone to complete."
+  description = "Timeout value (minutes) to wait for VM clone operation(s) to complete."
   default     = 30
 }
 
@@ -137,11 +127,26 @@ variable "enable_disk_uuid" {
 }
 
 #################################################
+# Global VM Customizations
+#################################################
+variable "dns_suffix_list" {
+  description = "A list of DNS search domains to add to the DNS configuration on the virtual machine."
+  type        = list(string)
+  default     = null
+}
+
+#################################################
 # Windows VM Customizations
 #################################################
-variable "local_adminpass" {
+variable "dns_server_list" {
+  type    = list(string)
+  description = "List of DNS servers to add to VM(s)."
+  default = null
+}
+
+variable "admin_password" {
   type        = string
-  description = "The administrator password for this virtual machine.(Required) when using join_windomain option"
+  description = "The administrator password for VM(s). (Required) when using join_windomain option"
   default     = null
 }
 
@@ -159,7 +164,7 @@ variable "domain_admin_user" {
 
 variable "domain_admin_password" {
   type        = string
-  description = "Doamin User pssword to join the server to AD.(Required) when using join_windomain option"
+  description = "Domain admin user password to join the VM(s) to AD. Required if join_domain option"
   default     = null
 }
 
@@ -181,8 +186,21 @@ variable "time_zone" {
   default     = null
 }
 
-variable "run_once" {
+variable "run_once_command_list" {
   type        = list(string)
   description = "List of Comamnd to run during first logon (Automatic login set to 1)"
+  default     = []
+}
+
+variable "product_key" {
+  type        = string
+  description = "Product key for VM(s)."
   default     = null
 }
+
+variable "full_name" {
+  type        = string
+  description = "Full name of local admin user of VM(s)."
+  default     = "Administrator"
+}
+

@@ -39,8 +39,9 @@ data "vsphere_tag_category" "category" {
 
 data "vsphere_tag" "tag" {
   count       = var.tags != null ? length(var.tags) : 0
+  
   name        = var.tags[keys(var.tags)[count.index]]
-  category_id = "${data.vsphere_tag_category.category[count.index].id}"
+  category_id = data.vsphere_tag_category.category[count.index].id
 }
 
 variable "vm_specs" {
@@ -55,28 +56,12 @@ variable "vm_specs" {
     additional_disks = map(object({
       label            = string
       size             = string
-      unit_number      = string
+      #unit_number      = string
       thin_provisioned = string
       eagerly_scrub    = string
       })
     ) }
   ))
-}
-
-locals {
-  additional_disks = flatten([
-    for vm_key, vm in var.vm_specs : [
-      for additional_disk_key, additional_disk in vm.additional_disks : {
-        vm_key               = vm_key
-        additional_disk_key  = additional_disk_key
-        label                = additional_disk.label
-        size                 = additional_disk.size
-        unit_number          = additional_disk.unit_number
-        thin_provisioned     = additional_disk.thin_provisioned
-        eagerly_scrub        = additional_disk.eagerly_scrub
-      }
-    ]
-  ])
 }
 
 resource "vsphere_virtual_machine" "windows" {
@@ -99,41 +84,50 @@ resource "vsphere_virtual_machine" "windows" {
   guest_id             = data.vsphere_virtual_machine.template.guest_id
   scsi_type            = data.vsphere_virtual_machine.template.scsi_type
 
-  #wait_for_guest_net_routable = var.wait_for_guest_net_routable
-  #wait_for_guest_ip_timeout   = var.wait_for_guest_ip_timeout
-  #wait_for_guest_net_timeout  = var.wait_for_guest_net_timeout
+  wait_for_guest_net_routable = var.wait_for_guest_net_routable
+  wait_for_guest_ip_timeout   = var.wait_for_guest_ip_timeout
+  wait_for_guest_net_timeout  = var.wait_for_guest_net_timeout
 
   network_interface {
     network_id   = data.vsphere_network.pg.id
     adapter_type = data.vsphere_virtual_machine.template.network_interface_types[0]
   }
 
-  # Disks defined in the original template
+  # Disks defined in the source vm_template
   dynamic "disk" {
     for_each = data.vsphere_virtual_machine.template.disks
     iterator = template_disks
 
     content {
-      label            = "disk-${template_disks.key}"
+      label            = data.vsphere_virtual_machine.template.disks[template_disks.key].label
       size             = data.vsphere_virtual_machine.template.disks[template_disks.key].size
-      unit_number      = template_disks.key
+      unit_number      = data.vsphere_virtual_machine.template.disks[template_disks.key].unit_number
       thin_provisioned = data.vsphere_virtual_machine.template.disks[template_disks.key].thin_provisioned
       eagerly_scrub    = data.vsphere_virtual_machine.template.disks[template_disks.key].eagerly_scrub
     }
   }
 
-  # Additional optional disks specified in vm_specs input variable map
+  # Additional disks specified in additional_disks within vm_specs map (opitonal)
   dynamic "disk" {
-    for_each = {
-      for additional_disk in local.additional_disks : "${additional_disk.vm_key}.${additional_disk.additional_disk_key}" => additional_disk
-    }
+    for_each = each.value.additional_disks == {} ? [] : flatten([ for disk in each.value.additional_disks : [
+      for k, v in disk : {
+        label       = disk.label
+        size        = disk.size
+        #unit_number = disk.unit_number
+        thin_provisioned = disk.thin_provisioned
+        eagerly_scrub    = disk.eagerly_scrub
+      }
+    ]
+    ])
+
+    iterator = additional_disk
 
     content {
-      label            = each.value.label
-      size             = each.value.size
-      unit_number      = each.value.unit_number
-      thin_provisioned = each.value.thin_provisioned
-      eagerly_scrub    = each.value.eagerly_scrub
+      label            = additional_disk.value.label
+      size             = additional_disk.value.size
+      #unit_number      = additional_disk.value.unit_number
+      thin_provisioned = additional_disk.value.thin_provisioned
+      eagerly_scrub    = additional_disk.value.eagerly_scrub
     }
   }
 
@@ -144,17 +138,17 @@ resource "vsphere_virtual_machine" "windows" {
     customize {
       windows_options {
         computer_name         = each.value.vm_name
-        admin_password        = var.local_adminpass
+        admin_password        = var.admin_password
         join_domain           = var.join_domain
         domain_admin_user     = var.domain_admin_user
         domain_admin_password = var.domain_admin_password
-        #organization_name     = var.orgname
+        organization_name     = var.organization_name
         run_once_command_list = var.run_once
         auto_logon            = var.auto_logon
         auto_logon_count      = var.auto_logon_count
         time_zone             = var.time_zone
-        #product_key           = var.productkey
-        #full_name             = var.full_name
+        product_key           = var.product_key
+        full_name             = var.full_name
       }
 
       network_interface {
@@ -162,7 +156,7 @@ resource "vsphere_virtual_machine" "windows" {
         ipv4_netmask = each.value.subnet_mask
       }
 
-      dns_server_list = var.vm_dns
+      dns_server_list = var.dns_server_list
       dns_suffix_list = var.dns_suffix_list
       ipv4_gateway    = each.value.gateway
     }
